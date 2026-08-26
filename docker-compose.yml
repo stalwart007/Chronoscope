@@ -1,0 +1,79 @@
+# Production-shaped stack: SPA + API + vector DB (+ optional local LLM).
+#
+#   docker compose up -d --build           default build (no torch, ~600 MB)
+#   docker compose --profile llm up -d     adds a local Ollama for generation
+#   INSTALL_ML=1 docker compose build api  full-fidelity build (CLIP + Whisper)
+
+name: chronoscope
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    restart: unless-stopped
+    volumes:
+      - qdrant-data:/qdrant/storage
+    ports:
+      - "6333:6333"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 4s
+      retries: 12
+      start_period: 15s
+
+  api:
+    build:
+      context: ./backend
+      args:
+        INSTALL_ML: ${INSTALL_ML:-0}
+    restart: unless-stopped
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    environment:
+      CS_ENV: prod
+      CS_LOG_JSON: "true"
+      CS_DATA_DIR: /data
+      CS_MODEL_CACHE_DIR: /data/models
+      CS_VECTOR_BACKEND: qdrant
+      CS_QDRANT_URL: http://qdrant:6333
+      CS_CORS_ORIGINS: ${CS_CORS_ORIGINS:-http://localhost:8080}
+      CS_INGEST_CONCURRENCY: ${CS_INGEST_CONCURRENCY:-2}
+      CS_WHISPER_MODEL: ${CS_WHISPER_MODEL:-base}
+      CS_LLM_PROVIDER_CHAIN: ${CS_LLM_PROVIDER_CHAIN:-ollama,openrouter,groq}
+      CS_OLLAMA_URL: ${CS_OLLAMA_URL:-http://ollama:11434}
+      CS_OLLAMA_MODEL: ${CS_OLLAMA_MODEL:-qwen2.5:7b-instruct}
+      CS_OLLAMA_VISION_MODEL: ${CS_OLLAMA_VISION_MODEL:-llava:7b}
+      CS_OPENROUTER_KEY: ${CS_OPENROUTER_KEY:-}
+      CS_GROQ_KEY: ${CS_GROQ_KEY:-}
+      CS_HF_TOKEN: ${CS_HF_TOKEN:-}
+    volumes:
+      - media-data:/data
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8080:8080"
+
+  # Free, fully local generation. Enable with `--profile llm`, then:
+  #   docker compose exec ollama ollama pull qwen2.5:7b-instruct
+  #   docker compose exec ollama ollama pull llava:7b
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["llm"]
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "11434:11434"
+
+volumes:
+  qdrant-data:
+  media-data:
+  ollama-data:

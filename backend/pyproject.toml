@@ -1,0 +1,99 @@
+[project]
+name = "chronoscope"
+version = "1.0.0"
+description = "Multimodal video analytics engine, scene-aware ingestion, cross-modal retrieval, agentic Q&A."
+requires-python = ">=3.11,<3.14"
+license = { text = "MIT" }
+
+# Core runtime, without torch. The engine boots, ingests, indexes, retrieves
+# and answers with only these installed, using the lightweight encoders.
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "pydantic>=2.9",
+  "pydantic-settings>=2.6",
+  "sqlalchemy>=2.0.36",
+  "aiosqlite>=0.20",
+  "greenlet>=3.1",
+  "numpy>=1.26",
+  "pillow>=10.4",
+  "av>=13.0",
+  "httpx>=0.27",
+  "python-multipart>=0.0.12",
+  "orjson>=3.10",
+  "qdrant-client>=1.12",
+]
+
+[project.optional-dependencies]
+# Full-quality models: CLIP and sentence embeddings, Whisper ASR, PySceneDetect.
+ml = [
+  "torch>=2.4",
+  "sentence-transformers>=3.2",
+  "open-clip-torch>=2.26",
+  "faster-whisper>=1.0.3",
+  "scenedetect>=0.6.4",
+  "opencv-python-headless>=4.10",
+]
+# Neural diarisation (needs a free HuggingFace token + accepted model licence).
+diarization = ["pyannote.audio>=3.3"]
+postgres = ["asyncpg>=0.30"]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-timeout>=2.3",
+  "ruff>=0.7",
+  "mypy>=1.13",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 118
+target-version = "py311"
+exclude = [".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF", "ASYNC", "S", "PL"]
+ignore = [
+  "E501",              # long lines are handled by the formatter
+  "B008",              # FastAPI's Depends()/File() defaults are idiomatic
+  "S101",              # asserts are used as internal invariants
+  "S104",              # binding 0.0.0.0 is correct inside a container
+  "S110", "S112",      # deliberate best-effort skips, each logged or commented
+  "S311",              # RNG is for jitter and index seeding, never for secrets
+  "PLR0913", "PLR0917",# pipeline/agent functions legitimately take many parameters
+  "PLR0912", "PLR0915",# canvas/DAG routines are long by nature; splitting hurts clarity
+  "PLR2004",           # tuned numeric constants are documented in context
+  "PLW0603",           # module-level lazy singletons (encoders, store, router) are intentional
+  "PLC0415",           # deferred imports keep optional heavy deps optional
+  "N806",              # matrix/vector names (M, K1, W) follow the papers they implement
+  "N818",              # HTTP-shaped error names (NotFound, BadRequest) read better here
+  "ASYNC109",          # explicit `timeout=` params on our own async helpers
+  "ASYNC240",          # pathlib in request handlers is bounded and cheap
+  "SIM905",            # multi-line `"...".split()` keeps long keyword sets readable
+  "RUF001", "RUF002", "RUF003",  # typographic punctuation in prose is intentional
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "PLR", "ASYNC", "E402"]
+"app/agents/tools/repl.py" = ["S102", "S307"]  # exec/eval are the sandbox's job
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+exclude = "(tests|\\.venv)/"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers --tb=short"
+filterwarnings = ["ignore::DeprecationWarning"]

@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+.vite/
+*.tsbuildinfo
+
+# Data & artefacts
+data/
+!data/.gitkeep
+*.db
+*.db-wal
+*.db-shm
+*.wav
+*.log
+
+# Env & editors
+.env
+.env.local
+.DS_Store
+.idea/
+.vscode/
