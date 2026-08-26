@@ -17,6 +17,9 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+          # The project declares dependencies in pyproject.toml and ships no
+          # lockfile, so key the cache on that instead of the default uv.lock.
+          cache-dependency-glob: backend/pyproject.toml
       - name: Install
         run: |
           uv venv --python 3.12 backend/.venv
@@ -24,7 +27,9 @@ jobs:
       - name: Lint
         run: backend/.venv/bin/python -m ruff check backend/app backend/tests
       - name: Types
-        run: backend/.venv/bin/python -m mypy backend/app || true
+        # Run from backend/ so mypy picks up its config in pyproject.toml.
+        working-directory: backend
+        run: .venv/bin/python -m mypy app
       - name: Test
         working-directory: backend
         run: .venv/bin/python -m pytest -q --timeout=180

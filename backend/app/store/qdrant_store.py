@@ -251,7 +251,9 @@ class QdrantVectorStore(VectorStore):
                 info = await self._client.get_collection(coll)
                 out["collections"][coll] = {
                     "points": info.points_count,
-                    "vectors": info.vectors_count,
+                    # Current clients expose indexed_vectors_count; it stays None
+                    # until the optimiser has built the index at least once.
+                    "vectors": getattr(info, "indexed_vectors_count", None),
                     "status": str(info.status),
                 }
             except Exception as exc:
